@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from './generated/client';
-import type { User } from './generated/client';
+import type { User, Order, Category, Product } from './generated/client';
 
 import { PrismaPg } from '@prisma/adapter-pg';
 import 'dotenv/config';
@@ -31,10 +31,22 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     return this.prisma.user.findMany(); // call Prisma client
   }
 
-  async findUserByEmail(email: string): Promise<User | null> {
-    // use Prisma client to avoid raw-SQL table-name mismatches
-    return this.prisma.user.findUnique({
-      where: { email },
-    });
+  async findAllOrders(): Promise<Order[]> {
+    return this.prisma.order.findMany(); // call Prisma client
   }
+
+  async findAllCategories(): Promise<Category[]> {
+    return this.prisma.category.findMany(); // call Prisma client
+  }
+
+  async findAllProducts(): Promise<Product[]> {
+    return this.prisma.product.findMany(); // call Prisma client
+  }
+
+  // async findUserByEmail(email: string): Promise<User | null> {
+  //   // use Prisma client to avoid raw-SQL table-name mismatches
+  //   return this.prisma.user.findUnique({
+  //     where: { email },
+  //   });
+  // }
 }
