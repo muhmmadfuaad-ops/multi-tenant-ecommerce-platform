@@ -1,0 +1,33 @@
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { PrismaClient } from './generated/client';
+import type { User } from './generated/client';
+
+import { PrismaPg } from '@prisma/adapter-pg';
+import 'dotenv/config';
+// import { User } from '../interfaces/user.interface';
+
+// import { User } from '@prisma/client';
+console.log('process.env.DATABASE_URL:', process.env.DATABASE_URL);
+
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL,
+});
+
+@Injectable()
+export class PrismaService implements OnModuleInit, OnModuleDestroy {
+  prisma = new PrismaClient({
+    adapter,
+  });
+
+  async onModuleInit() {
+    await this.prisma.$connect();
+  }
+
+  async onModuleDestroy() {
+    await this.prisma.$disconnect();
+  }
+
+  async findAllUsers(): Promise<User[]> {
+    return this.prisma.user.findMany(); // call Prisma client
+  }
+}

@@ -14,11 +14,11 @@ import * as path from 'node:path';
 
 import * as runtime from '@prisma/client/runtime/client';
 import * as $Enums from './enums.js';
-import * as $Class from './internal/class.ts';
-import * as Prisma from './internal/prismaNamespace.ts';
+import * as $Class from './internal/class';
+import * as Prisma from './internal/prismaNamespace';
 
-export * as $Enums from './enums.ts';
-export * from './enums.ts';
+export * as $Enums from './enums';
+export * from './enums';
 /**
  * ## Prisma Client
  *
