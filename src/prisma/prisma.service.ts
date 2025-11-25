@@ -30,4 +30,11 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   async findAllUsers(): Promise<User[]> {
     return this.prisma.user.findMany(); // call Prisma client
   }
+
+  async findUserByEmail(email: string): Promise<User | null> {
+    // use Prisma client to avoid raw-SQL table-name mismatches
+    return this.prisma.user.findUnique({
+      where: { email },
+    });
+  }
 }
