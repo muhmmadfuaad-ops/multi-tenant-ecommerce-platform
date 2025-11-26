@@ -22,6 +22,14 @@ export class UsersService {
     return this.prismaService.prisma.user.findMany();
   }
 
+  async findOneById(id: string) {
+    return this.prismaService.prisma.user.findUnique({ where: { id } });
+  }
+
+  async findOneByName(name: string) {
+    return this.prismaService.prisma.user.findFirst({ where: { name } });
+  }
+
   findOne(id: number) {
     return `This action returns a #${id} user`;
   }
