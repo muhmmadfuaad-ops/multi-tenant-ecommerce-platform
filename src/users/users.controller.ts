@@ -38,7 +38,12 @@ export class UsersController {
   // Find user by Name
   @Get('name/:name')
   findOneByName(@Param('name') name: string) {
-    return this.usersService.findOneByName(name);
+    return this.usersService.findAllByName(name);
+  }
+
+  @Get('search/:name')
+  findAllByNameLike(@Param('name') name: string) {
+    return this.usersService.findAllByNameLike(name);
   }
 
   // @Get(':id')

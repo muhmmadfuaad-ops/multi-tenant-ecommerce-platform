@@ -1,37 +1,60 @@
 import { Injectable } from '@nestjs/common';
-// import { CreateUserDto } from './dto/create-user.dto';
-// import { UpdateUserDto } from './dto/update-user.dto';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import type { User } from '../prisma/generated/client';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prismaService: PrismaService) {}
-  // create(createUserDto: CreateUserDto) {
-  //   return 'This action adds a new user';
-  // }
+  // const prisma = this.prismaService.prisma
+  private get prisma() {
+    return this.prismaService.prisma;
+  }
+
+  // CREATE
+  async create(createUserDto: CreateUserDto) {
+    return this.prisma.user.create({
+      data: createUserDto,
+    });
+  }
+
+  // UPDATE
+  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data: updateUserDto,
+    });
+  }
+
+  // DELETE
+  async remove(id: string) {
+    return this.prisma.user.delete({
+      where: { id },
+    });
+  }
 
   async findAll() {
-    // console.log('this.prismaService:', this.prismaService);
-
-    // console.log('this.prismaService.user:', this.prismaService.user);
-    // console.log(
-    //   'this.prismaService.prisma.user:',
-    //   this.prismaService.prisma.user,
-    // );
-
-    return this.prismaService.prisma.user.findMany();
+    return this.prisma.user.findMany();
   }
 
   async findOneById(id: string) {
-    return this.prismaService.prisma.user.findUnique({ where: { id } });
+    return this.prisma.user.findUnique({ where: { id } });
   }
 
-  async findOneByName(name: string) {
-    return this.prismaService.prisma.user.findFirst({ where: { name } });
+  async findAllByName(name: string) {
+    return this.prisma.user.findMany({ where: { name } });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} user`;
+  async findAllByNameLike(name: string) {
+    return this.prisma.user.findMany({
+      where: {
+        name: {
+          contains: name, // matches anywhere in the string
+          mode: 'insensitive', // makes it case-insensitive
+        },
+      },
+    });
   }
 
   // update(id: number, updateUserDto: UpdateUserDto) {
