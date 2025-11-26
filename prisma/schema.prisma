@@ -49,6 +49,20 @@ enum OtpType {
   EMAIL
 }
 
+enum DeliveryStatus {
+  DRAFT
+  PENDING
+  DELIVERED
+  FAILED
+}
+
+enum rating {
+  ONE
+  TWO
+  THREE
+  FOUR
+  FIVE
+}
 ///////////////////////
 // MODELS
 ///////////////////////
@@ -76,6 +90,7 @@ model User {
   name         String?
   passwordHash String?
   role         Role    @default(USER)
+  profileImage String?
 
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   tenantId String @db.Uuid
@@ -85,6 +100,11 @@ model User {
   addresses Address[]
   sessions  Session[]
   otps      OTP[]
+  reviews   Review[]
+  notifications Notification[]
+
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -145,6 +165,7 @@ model Product {
   tenantId String @db.Uuid
   seller   User   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   sellerId String @db.Uuid
+  reviews  Review[]
 
   orders     OrderItem[]
   categories Category[]  @relation("ProductCategories")
@@ -217,4 +238,43 @@ model Category {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
+}
+
+model Review {
+  id        String  @id @default(cuid(2))
+  rating    Int
+  comment   String?
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String  @db.Uuid
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid(2))
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @db.Uuid
+  title     String
+  message   String
+  read      Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Message {
+  id        String   @id @default(cuid(2))
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  senderId   String   @db.Uuid
+
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  receiverId String   @db.Uuid
+  content   String
+  deliveryStatus DeliveryStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
