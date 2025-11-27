@@ -13,19 +13,19 @@ export class UsersService {
   }
 
   // CREATE
-  async create(createUserDto: CreateUserDto) {
-    return this.prisma.user.create({
-      data: createUserDto,
-    });
-  }
-
-  // UPDATE
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
-    return this.prisma.user.update({
-      where: { id },
-      data: updateUserDto,
-    });
-  }
+  // async create(createUserDto: CreateUserDto) {
+  //   return this.prisma.user.create({
+  //     data: createUserDto,
+  //   });
+  // }
+  //
+  // // UPDATE
+  // async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+  //   return this.prisma.user.update({
+  //     where: { id },
+  //     data: updateUserDto,
+  //   });
+  // }
 
   // DELETE
   async remove(id: string) {
