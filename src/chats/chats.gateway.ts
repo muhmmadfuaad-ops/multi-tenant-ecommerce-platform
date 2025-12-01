@@ -32,6 +32,11 @@ export class ChatsGateway {
 
     // console.log('userId:', userId);
     console.log(`${userId} connected with socket id: ${socket.id}`);
+    // Notify all users about the new user
+    this.server.emit('user_connected', {
+      userId,
+      users: Object.values(this.users), // Optional: send all connected users
+    });
   }
 
   // When a message is sent
