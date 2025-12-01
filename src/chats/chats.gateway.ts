@@ -37,34 +37,45 @@ export class ChatsGateway {
   // When a message is sent
   @SubscribeMessage('private_message')
   handleMessage(
-    @MessageBody() payload: { to: string; message: string },
+    @MessageBody() payload: { to: string; from: string; message: string },
     @ConnectedSocket() socket: Socket,
   ) {
     try {
       console.log('handleMessage triggered');
       console.log('this.users:', this.users);
+      const { to, from, message } = payload;
 
-      const from = this.users[socket.id];
+      // const from = this.users[socket.id];
 
       // console.log('from:', from);
       // console.log('payload:', payload);
 
       // console.log('socket:', socket);
 
-      console.log(`Message from ${from} to ${payload.to}: ${payload.message}`);
+      console.log(`Message from ${from} to ${to}: ${message}`);
       // console.log('main point')
       // console.log('Object.keys(this.users):', Object.keys(this.users));
       // Find the socket of the recipient
       const recipientSocketId = Object.keys(this.users).find(
-        (key) => this.users[key] === payload.to,
+        (key) => this.users[key] === to,
+      );
+
+      const senderSocketId = Object.keys(this.users).find(
+        (key) => this.users[key] === from,
       );
 
       console.log('recipientSocketId:', recipientSocketId);
-
-      if (recipientSocketId) {
+      if (recipientSocketId && senderSocketId) {
         this.server.to(recipientSocketId).emit('private_message', {
+          to,
           from,
-          message: payload.message,
+          message,
+        });
+
+        this.server.to(senderSocketId).emit('private_message', {
+          to,
+          from,
+          message,
         });
       }
     } catch (error) {
