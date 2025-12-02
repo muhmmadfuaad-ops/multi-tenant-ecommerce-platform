@@ -39,6 +39,44 @@ export class ChatsGateway {
     });
   }
 
+  @SubscribeMessage('is_typing')
+  handleTyping(
+    @MessageBody() payload: { to: string; from: string; isTyping: boolean },
+    @ConnectedSocket() socket: Socket,
+  ) {
+    try {
+      console.log('handleTyping triggered');
+      // console.log('this.users:', this.users);
+      const { to, from, isTyping } = payload;
+
+      // const from = this.users[socket.id];
+
+      // console.log('from:', from);
+      console.log('payload:', payload);
+
+      // console.log('socket:', socket);
+
+      // console.log(`Message from ${from} to ${to}: ${message}`);
+      // console.log('main point')
+      // console.log('Object.keys(this.users):', Object.keys(this.users));
+      // Find the socket of the recipient
+      const recipientSocketId = Object.keys(this.users).find(
+        (key) => this.users[key] === to,
+      );
+
+      console.log(`receibed a isTyping event for ${recipientSocketId}`);
+      if (recipientSocketId) {
+        this.server.to(recipientSocketId).emit('is_typing', {
+          to,
+          from,
+          isTyping,
+        });
+      }
+    } catch (error) {
+      console.error('Error in handleMessage:', error);
+    }
+  }
+
   // When a message is sent
   @SubscribeMessage('private_message')
   handleMessage(
