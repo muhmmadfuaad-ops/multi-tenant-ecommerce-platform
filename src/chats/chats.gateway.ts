@@ -39,7 +39,7 @@ export class ChatsGateway {
     );
 
     const otherUsersIds = Object.keys(this.users).filter(
-      (name) => name !== socket.id,
+      (id) => id !== socket.id,
     );
 
     console.log('this.users:', this.users);
@@ -178,6 +178,18 @@ export class ChatsGateway {
   // Optional: handle disconnections
   handleDisconnect(socket: Socket) {
     console.log(`${this.users[socket.id]} disconnected`);
+    const otherUsersIds = Object.keys(this.users).filter(
+      (id) => id !== socket.id,
+    );
+
+    const userName = this.users[socket.id];
+
+    otherUsersIds.forEach((id) => {
+      console.log(`emitting userConnected event to ${id}`);
+
+      this.server.to(id).emit('userDisconnected', { userData: userName });
+    });
     delete this.users[socket.id];
+    console.log('this.users in handleDisconnect:', this.users);
   }
 }
