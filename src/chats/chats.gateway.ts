@@ -20,26 +20,75 @@ export class ChatsGateway {
   private users: Record<string, string> = {}; // socket.id -> userId mapping
 
   // When a user connects and sends their userId
-  @SubscribeMessage('register')
+  @SubscribeMessage('registerUser')
   registerUser(
-    @MessageBody() userId: string,
+    @MessageBody() userName: string,
     @ConnectedSocket() socket: Socket,
   ) {
-    // console.log('registerUser triggered');
+    console.log('registerUser triggered');
+    console.log('userName:', userName);
     // console.log('this.users in registerUser before:', this.users);
-    this.users[socket.id] = userId;
+    this.users[socket.id] = userName;
     // console.log('this.users in registerUser after:', this.users);
 
     // console.log('userId:', userId);
-    console.log(`${userId} connected with socket id: ${socket.id}`);
-    // Notify all users about the new user
-    this.server.emit('user_connected', {
-      userId,
-      users: Object.values(this.users), // Optional: send all connected users
+    console.log(`${userName} connected with socket id: ${socket.id}`);
+    // Notify all users except this one, about the new user
+    const otherUsersNames = Object.values(this.users).filter(
+      (name) => name !== userName,
+    );
+
+    const otherUsersIds = Object.keys(this.users).filter(
+      (name) => name !== socket.id,
+    );
+
+    console.log('this.users:', this.users);
+    console.log('otherUsersNames:', otherUsersNames);
+
+    otherUsersIds.forEach((id) => {
+      console.log(`emitting userConnected event to ${id}`);
+      this.server.to(id).emit('userConnected', { userData: userName });
+    });
+
+    const usersData = Object.values(this.users);
+    console.log('usersData:', usersData);
+
+    // provide all the users to new joiner
+    this.server.to(socket.id).emit('registrationSuccessful', {
+      usersData,
     });
   }
 
-  @SubscribeMessage('is_typing')
+  // @SubscribeMessage('userDisconnected')
+  //   userDisconnected(
+  //     @MessageBody() userName: string,
+  //   @ConnectedSocket() socket: Socket,
+  // ) {
+  //     console.log('registerUser triggered');
+  //     console.log('userName:', userName);
+  //     // console.log('this.users in registerUser before:', this.users);
+  //     this.users[socket.id] = userName;
+  //     // console.log('this.users in registerUser after:', this.users);
+  //
+  //     // console.log('userId:', userId);
+  //     console.log(`${userName} connected with socket id: ${socket.id}`);
+  //     // Notify all users except this one, about the new user
+  //     const otherUsersNames = Object.keys(this.users).filter(
+  //       (name) => name !== userName,
+  //     );
+  //     console.log('otherUsersNames:', otherUsersNames);
+  //
+  //     otherUsersNames.forEach((id) => {
+  //       this.server.to(id).emit('userConnected', { userData: userName });
+  //     });
+  //
+  //   // provide all users to this new joiner
+  //   this.server.to(socket.id).emit('registrationSuccessful', {
+  //     usersData: Object.values(this.users), // send all connected users
+  //   });
+  // }
+
+  @SubscribeMessage('typing_event')
   handleTyping(
     @MessageBody() payload: { to: string; from: string; isTyping: boolean },
     @ConnectedSocket() socket: Socket,
@@ -64,7 +113,7 @@ export class ChatsGateway {
         (key) => this.users[key] === to,
       );
 
-      console.log(`receibed a isTyping event for ${recipientSocketId}`);
+      console.log(`received a isTyping event for ${recipientSocketId}`);
       if (recipientSocketId) {
         this.server.to(recipientSocketId).emit('is_typing', {
           to,
