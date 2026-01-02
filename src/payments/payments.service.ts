@@ -1,236 +1,199 @@
-// payments.service.ts
-import { Injectable } from '@nestjs/common';
-import * as crypto from 'crypto';
-import axios from 'axios';
+import { Injectable, Logger } from '@nestjs/common';
+import fetch from 'node-fetch';
+import Safepay from '@sfpy/node-core';
+import { response } from 'express';
 
 @Injectable()
-export class PaymentService {
-  private baseUrl: string;
-  private merchantId: string;
-  private password: string;
-  private integritySalt: string;
-  private returnUrl: string;
+export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
+  private sessionToken: string;
+  private readonly merchantSecretKey = "d7d5f338d7654f4abe87551897f7b5f471deaba0ca71da2a3725dcae20ce8086";
+  private readonly merchantPublicKey = "sec_a839e636-315b-4b41-89f7-fbda4ae43819";
+  private readonly customerToken = "cus_5e42420b-de5b-459c-8414-58b1b08dce06"
+  
+  private trackerToken: string;
 
-  constructor() {
-    // Hardcoded sandbox values
-    this.baseUrl =
-      'https://sandbox.jazzcash.com.pk/ApplicationAPI/API/Purchase/InitiateAuthentication';
-    this.merchantId = 'MC536332';
-    this.password = 't5t5yeg0y1';
-    this.integritySalt = 's28s9us04v';
-    this.returnUrl = 'http://localhost:3000/payments/callback';
+  private readonly baseUrl = 'https://sandbox.api.getsafepay.com';
+
+  // Authenticate with SafePay, store session token
+  async authenticate(companyEmail: string, password: string) {
+    const response = await fetch(`${this.baseUrl}/auth/v1/company/authenticate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        Email: companyEmail, 
+        Password: password,
+        Client: 'ecommerce-platform'
+      }),
+    });
+    const data: any = await response.json();
+    console.log('data in authenticate:', data)
+    if (!data.data?.token) throw new Error('Authentication failed');
+    this.sessionToken = data.data.token;
+    console.log('this.sessionToken in authenticate:', this.sessionToken)
+
+    return data.data;
   }
 
-  /**
-   * Initiate payment by building payload and sending to JazzCash
-   */
-  async initiatePayment(
-    amount: number,
-    billReference: string,
-    description: string,
-  ) {
+  // Create tracker for a new payment
+  async createTracker(dto: any) {
+    console.log('this.sessionToken in createTracker:', this.sessionToken)
+    console.log('dto in createTracker:', dto)
+    if (!this.sessionToken) throw new Error('Not authenticated');
+    const response = await fetch(`${this.baseUrl}/order/payments/v3/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.sessionToken}`,
+      },
+      body: JSON.stringify({
+        amount: dto.amount,
+        currency: dto.currency,
+        intent: dto.intent,
+        payment_method_kind: dto.payment_method_kind || 'card',
+        merchant_api_key: this.merchantPublicKey,
+      }),
+    });
+    const data: any = await response.json();
+    console.log('data in createTracker:', data)
+    this.trackerToken = data.data.tracker.token;
+    console.log('this.trackerToken in createTracker:', this.trackerToken)
 
-    // previous txnDateTime and txnExpiry calculation
-    const txnRefNo = `T${Date.now()}`;
-    const txnDateTime = new Date()
-      .toISOString()
-      .slice(0, 19)
-      .replace(/[-:T]/g, '');
-    const txnExpiry = txnDateTime; // For sandbox, same as txnDateTime
-
-    // new txnDateTime and txnExpiry calculation
-    const txnDateTime_updated = new Date();
-    const txnExpiry_updated = new Date(txnDateTime_updated.getTime() + 15 * 60 * 1000); // +15 minutes
-
-    const pp_TxnDateTime = txnDateTime_updated.toISOString().slice(0, 19).replace(/[-:T]/g, '');
-    const pp_TxnExpiryDateTime = txnExpiry_updated.toISOString().slice(0, 19).replace(/[-:T]/g, '');
-
-
-    // const payload: Record<string, any> = {
-    //   pp_Amount: amount.toString(),
-    //   pp_BillReference: billReference,
-    //   pp_CustomerCardNumber: 5123456789012346,
-    //   pp_Description: description,
-    //   pp_IsRegisteredCustomer: 'Yes',
-    //   pp_Language: 'EN',
-    //   pp_MerchantID: this.merchantId,
-    //   pp_Password: this.password,
-    //   pp_ReturnURL: this.returnUrl,
-    //   pp_ShouldTokenizeCardNumber: 'Yes',
-    //   pp_TxnCurrency: 'PKR',
-    //   pp_TxnDateTime: txnDateTime,
-    //   pp_TxnExpiryDateTime: txnExpiry,
-    //   pp_TxnRefNo: txnRefNo,
-    //   pp_TxnType: 'MPAY',
-    //   pp_Version: '2.0',
-    // };
-
-    // this payload was taken from JazzCash sandbox and it has static secureHash (calculated through their method)
-    const payload1: Record<string, any> = {
-      pp_Version: "1.1",
-      pp_TxnType: "MPAY",
-      pp_TxnRefNo: "T20251229144901",
-      pp_MerchantID: "MC536332",
-      pp_Password: "t5t5yeg0y1",
-      pp_Amount: "5000",
-      pp_TxnCurrency: "PKR",
-      pp_TxnDateTime: "20251229144901",
-      pp_TxnExpiryDateTime: "20251229144901",
-      pp_BillReference: "billRef",
-      pp_Description: "Description of transaction",
-      pp_CustomerCardNumber: "5123450000000008",
-      pp_UsageMode: "API",
-      pp_SecureHash: "82075149B2BFE56DF4616BEE8AA0F780A542F44A64C6FCD26731B93A0223FB2D"
-    }
-
-    // this payload accepts some fields dynamically from the request and calculates secureHash accordingly. its using version 1.1
-    const payload2: Record<string, any> = {
-      "pp_Version": "1.1",
-      "pp_TxnType": "MPAY",
-      "pp_TxnRefNo": txnRefNo,
-      "pp_MerchantID": this.merchantId,
-      "pp_Password": this.password,
-      "pp_Amount": amount.toString(),
-      "pp_TxnCurrency": "PKR",
-      "pp_TxnDateTime": pp_TxnDateTime,
-      "pp_TxnExpiryDateTime": pp_TxnExpiryDateTime,
-      "pp_BillReference": billReference,
-      "pp_Description": description,
-      "pp_CustomerCardNumber": "5123450000000008",
-      "pp_UsageMode": "API"
-      // pp_IsRegisteredCustomer: 'Yes',
-      // pp_Language: 'EN',
-      // pp_ReturnURL: this.returnUrl,
-      // pp_ShouldTokenizeCardNumber: 'Yes',
-    };
-
-    // Generate secure hash
-    payload2.pp_SecureHash = this.generateSecureHash(payload2);
-
-    // this payload accepts some fields dynamically from the request and calculates secureHash accordingly. its using version 2.0
-    const payload3: Record<string, any> = {
-      "pp_Version": "2.0",
-      "pp_IsRegisteredCustomer": "Yes",
-      "pp_ShouldTokenizeCardNumber": "Yes",
-      "pp_TxnType": "MPAY",
-      "pp_TxnRefNo": txnRefNo,
-      "pp_MerchantID": this.merchantId,
-      "pp_Password": this.password,
-      "pp_Amount": amount.toString(),
-      "pp_TxnCurrency": "PKR",
-      "pp_TxnDateTime": txnDateTime,
-      "pp_TxnExpiryDateTime": txnExpiry,
-      "pp_BillReference": billReference,
-      "pp_Description": description,
-      "pp_CustomerCardNumber": 5123450000000008,
-      "pp_UsageMode": "API",
-    };
-
-    // Generate secure hash
-    payload3.pp_SecureHash = this.generateSecureHash(payload3);
-
-    
-
-
-    try {
-      console.log('payload in axios request:', payload2);
-      const response = await axios.post(this.baseUrl, payload2);
-      console.log('response.data:', response.data);
-      return response.data; // JazzCash response
-    } catch (err) {
-      console.error('JazzCash API error:', err.response?.data || err.message);
-      throw err;
-    }
+    return data.data;
   }
 
-  /**
-   * Generate HMAC SHA256 secure hash for JazzCash
-   */
-  // private generateSecureHash(payload: Record<string, any>): string {
-  //   console.log('payload in generateSecureHash:', payload);
-  //   console.log('integritySalt in generateSecureHash:', this.integritySalt);
-  //
-  //   const sortedKeys = Object.keys(payload).sort();
-  //   const dataString = sortedKeys.map((k) => `${k}=${payload[k]}`).join('&');
-  //   console.log('dataString:', dataString);
-  //   const hash = crypto
-  //     .createHmac('sha256', this.integritySalt)
-  //     .update(dataString)
-  //     .digest('hex')
-  //     .toUpperCase();
-  //
-  //   // const hash = CryptoJS.SHA256(this.integritySalt + dataString)
-  //   //   .toString(CryptoJS.enc.Hex)
-  //   //   .toUpperCase();
-  //
-  //   return hash;
-  // }
+  // capture context jwt (transient token / gateway payload)
+  async capture(dto: any) {
+    console.log('this.sessionToken in capture:', this.sessionToken)
+    if (!this.sessionToken) throw new Error('Not authenticated');
 
-  // private generateSecureHash(payload: Record<string, any>): string {
-  //   const sortedKeys = Object.keys(payload)
-  //     .filter((k) => payload[k] !== undefined && payload[k] !== '')
-  //     .sort();
+    const response = await fetch(
+      `${this.baseUrl}/order/payments/v3/${this.trackerToken}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Authorization: `Bearer ${this.sessionToken}`,
+          'X-SFPY-MERCHANT-SECRET': this.merchantSecretKey,
+        },
+        body: JSON.stringify({
+          "action": "GENERATE_CAPTURE_CONTEXT",
+          "origin": "https://unsmelling-kash-weevilly.ngrok-free.dev"
+        }),
+      },
+    );
+    const data: any = await response.json();
+    console.log('data in capture:', data)
 
-  //   const dataString = sortedKeys.map((k) => `${k}=${payload[k]}`).join('&');
+    return data.data;
+  }
 
-  //   const hmac = crypto
-  //     .createHmac('sha256', this.integritySalt)
-  //     .update(dataString)
-  //     .digest('hex')
-  //     .toUpperCase();
+//   async redirect() {
+//     const safepay = new Safepay('SAFEPAY_SECRET_KEY', {
+//       authType: 'secret',
+//       host: 'https://sandbox.api.getsafepay.com' // for live payments use https://api.getsafepay.com
+//     });
 
-  //   return hmac;
-  // }
+//     try {
+//       const checkoutURL = await safepay.checkout({
+//         // this the tracker.token from the payment session response
+//         tracker: this.trackerToken,
+//         // the authentication token
+//         tbt: this.sessionToken,
+//         // either production or sandbox
+//         environment: "sandbox",
+//         // attach a source, available options are: hosted, popup, mobile, woocommerce, and shopify 
+//         source: "hosted",
+//         // OPTIONAL attach the customer.token from the create customer response to prefill the payment form
+//         user_id: this.customerToken,
+//         // the success URL to redirect your customer to after payment complete
+//         redirect_url: "https://mywebsite.com/order/success",
+//         // the cancel URL to redirect your customer to after the customer cancels the checkout session
+//         cancel_url: "https://mywebsite.com/order/cancel"
+//       })
 
-  private generateSecureHash(payload: Record<string, any>): string {
-  const integritySalt = this.integritySalt;
+//       console.log('checkoutURL in redirect:', checkoutURL)
+//       return { checkoutURL };
+//     } catch (err) {
+//       console.log(err);
+//     }
+// }
 
-  const sortedKeys = Object.keys(payload)
-    .filter(
-      (k) =>
-        k.startsWith('pp_') &&
-        k !== 'pp_SecureHash' &&
-        payload[k] !== undefined &&
-        payload[k] !== '',
-    )
-    .sort();
+async redirect() {
+  
 
-    console.log('sortedKeys:', sortedKeys)
-  let finalString = integritySalt + '&';
+  try {
+    // @ts-ignore
 
-  sortedKeys.forEach((key) => {
-    finalString += payload[key] + '&';
-  });
+    // const safepay = new Safepay(this.merchantSecretKey, {
+    //   authType: 'secret',
+    //   host: 'https://sandbox.api.getsafepay.com'
+    // });
 
-    console.log('finalString:', finalString)
+    // const checkoutURL = await safepay.checkout.create({
+    //   tracker: this.trackerToken,
+    //   tbt: this.sessionToken,
+    //   environment: "sandbox",
+    //   source: "hosted",
+    //   user_id: this.customerToken,
+    //   redirect_url: "https://mywebsite.com/order/success",
+    //   cancel_url: "https://mywebsite.com/order/cancel"
+    // });
 
-  finalString = finalString.slice(0, -1); // remove trailing &
-    console.log('finalString after slice:', finalString)
+    // console.log('checkoutURL in redirect:', checkoutURL);
 
-
-  const hash = crypto
-    .createHmac('sha256', integritySalt)
-    .update(finalString)
-    .digest('hex')
-    .toUpperCase();
-
-    console.log('hash:', hash)
-
-  return hash;
+    const safepay = new Safepay(this.merchantSecretKey, { authType: 'secret', host: 'https://sandbox.api.getsafepay.com' });
+    console.log('safepay in redirect:', safepay);
+    const checkoutUrl = safepay.checkout.createCheckoutUrl({
+      tracker: this.trackerToken,
+      tbt: this.sessionToken,
+      env: 'sandbox',
+      source: 'hosted',
+      user_id: this.customerToken,
+      redirect_url: 'https://mywebsite.com/order/success',
+      cancel_url: 'https://mywebsite.com/order/cancel'
+    });
+    return { checkoutUrl };
+  } catch (err) {
+    console.log(err);
+  }
 }
 
+  // Submit action (transient token / gateway payload)
+  async submitAction(dto: any) {
+    console.log('this.sessionToken in submitAction:', this.sessionToken)
+    if (!this.sessionToken) throw new Error('Not authenticated');
 
-  /**
-   * Verify secure hash from callback
-   */
-  verifyCallback(payload: Record<string, any>): boolean {
-    const hash = payload.pp_SecureHash;
-    if (!hash) return false;
+    const response = await fetch(
+      `${this.baseUrl}/order/payments/v3/${dto.trackerToken}/actions/${dto.actionToken}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.sessionToken}`,
+        },
+        body: JSON.stringify({
+          transient_token: dto.transientToken,
+          ...dto.additionalData,
+        }),
+      },
+    );
+    const data: any = await response.json();
+    console.log('data in submitAction:', data)
 
-    const payloadCopy = { ...payload };
-    delete payloadCopy.pp_SecureHash;
+    return data.data;
+  }
 
-    const expectedHash = this.generateSecureHash(payloadCopy);
-    return expectedHash === hash;
+  // Poll tracker status
+  async pollTracker(trackerToken: string) {
+    if (!this.sessionToken) throw new Error('Not authenticated');
+    const response = await fetch(`${this.baseUrl}/order/payments/v3/${trackerToken}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${this.sessionToken}`,
+      },
+    });
+    const data: any = await response.json();
+    return data.data;
   }
 }

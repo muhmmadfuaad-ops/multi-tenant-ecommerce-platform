@@ -22,14 +22,14 @@ export class ChatsGateway {
   handleConnection(socket: Socket) {
     // This is where you access the value sent via socket.auth
     const userName = socket.handshake.auth.userName;
-    console.log(`${userName} connected with socket id: ${socket.id}`);
+    // console.log(`${userName} connected with socket id: ${socket.id}`);
 
     this.users[socket.id] = userName;
 
-    console.log('this.users:', this.users);
+    // console.log('this.users:', this.users);
 
     const usersData = Object.values(this.users);
-    console.log('usersData:', usersData);
+    // console.log('usersData:', usersData);
 
     // provide all the users to new joiner
     this.server.to(socket.id).emit('registrationSuccessful', {
@@ -41,7 +41,7 @@ export class ChatsGateway {
       (id) => id !== socket.id,
     );
 
-    console.log('this.users:', this.users);
+    // console.log('this.users:', this.users);
 
     otherUsersIds.forEach((id) => {
       console.log(`emitting userConnected event to ${id}`);
