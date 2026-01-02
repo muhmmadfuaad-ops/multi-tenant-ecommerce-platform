@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import fetch from 'node-fetch';
 import Safepay from '@sfpy/node-core';
-import { response } from 'express';
+import { Response } from 'express';
 
 @Injectable()
 export class PaymentsService {
@@ -9,7 +9,7 @@ export class PaymentsService {
   private sessionToken: string;
   private readonly merchantSecretKey = "d7d5f338d7654f4abe87551897f7b5f471deaba0ca71da2a3725dcae20ce8086";
   private readonly merchantPublicKey = "sec_a839e636-315b-4b41-89f7-fbda4ae43819";
-  private readonly customerToken = "cus_5e42420b-de5b-459c-8414-58b1b08dce06"
+  private customerToken: string;
   
   private trackerToken: string;
 
@@ -62,6 +62,28 @@ export class PaymentsService {
     return data.data;
   }
 
+  async createCustomer(dto: any) {
+    console.log('this.sessionToken in createCustomer:', this.sessionToken)
+    if (!this.sessionToken) throw new Error('Not authenticated');
+
+    const response = await fetch(
+      `${this.baseUrl}/user/customers/v1/`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Authorization: `Bearer ${this.sessionToken}`,
+          'X-SFPY-MERCHANT-SECRET': this.merchantSecretKey,
+        },
+        body: JSON.stringify(dto),
+      },
+    );
+    const data: any = await response.json();
+    console.log('data in createCustomer:', data)
+    this.customerToken = data.data.token;
+    return data.data;
+  }
+
   // capture context jwt (transient token / gateway payload)
   async capture(dto: any) {
     console.log('this.sessionToken in capture:', this.sessionToken)
@@ -88,76 +110,25 @@ export class PaymentsService {
     return data.data;
   }
 
-//   async redirect() {
-//     const safepay = new Safepay('SAFEPAY_SECRET_KEY', {
-//       authType: 'secret',
-//       host: 'https://sandbox.api.getsafepay.com' // for live payments use https://api.getsafepay.com
-//     });
-
-//     try {
-//       const checkoutURL = await safepay.checkout({
-//         // this the tracker.token from the payment session response
-//         tracker: this.trackerToken,
-//         // the authentication token
-//         tbt: this.sessionToken,
-//         // either production or sandbox
-//         environment: "sandbox",
-//         // attach a source, available options are: hosted, popup, mobile, woocommerce, and shopify 
-//         source: "hosted",
-//         // OPTIONAL attach the customer.token from the create customer response to prefill the payment form
-//         user_id: this.customerToken,
-//         // the success URL to redirect your customer to after payment complete
-//         redirect_url: "https://mywebsite.com/order/success",
-//         // the cancel URL to redirect your customer to after the customer cancels the checkout session
-//         cancel_url: "https://mywebsite.com/order/cancel"
-//       })
-
-//       console.log('checkoutURL in redirect:', checkoutURL)
-//       return { checkoutURL };
-//     } catch (err) {
-//       console.log(err);
-//     }
-// }
-
-async redirect() {
-  
-
-  try {
-    // @ts-ignore
-
-    // const safepay = new Safepay(this.merchantSecretKey, {
-    //   authType: 'secret',
-    //   host: 'https://sandbox.api.getsafepay.com'
-    // });
-
-    // const checkoutURL = await safepay.checkout.create({
-    //   tracker: this.trackerToken,
-    //   tbt: this.sessionToken,
-    //   environment: "sandbox",
-    //   source: "hosted",
-    //   user_id: this.customerToken,
-    //   redirect_url: "https://mywebsite.com/order/success",
-    //   cancel_url: "https://mywebsite.com/order/cancel"
-    // });
-
-    // console.log('checkoutURL in redirect:', checkoutURL);
-
-    const safepay = new Safepay(this.merchantSecretKey, { authType: 'secret', host: 'https://sandbox.api.getsafepay.com' });
-    console.log('safepay in redirect:', safepay);
-    const checkoutUrl = safepay.checkout.createCheckoutUrl({
-      tracker: this.trackerToken,
-      tbt: this.sessionToken,
-      env: 'sandbox',
-      source: 'hosted',
-      user_id: this.customerToken,
-      redirect_url: 'https://mywebsite.com/order/success',
-      cancel_url: 'https://mywebsite.com/order/cancel'
-    });
-    return { checkoutUrl };
-  } catch (err) {
-    console.log(err);
+  // get a checkout url to redirect the customer
+  async redirect() {
+    try {
+      const safepay = new Safepay(this.merchantSecretKey, { authType: 'secret', host: 'https://sandbox.api.getsafepay.com' });
+      // console.log('safepay in redirect:', safepay);
+      const checkoutUrl =safepay.checkout.createCheckoutUrl({
+        tracker: this.trackerToken,
+        tbt: this.sessionToken,
+        env: 'sandbox',
+        source: 'hosted',
+        user_id: this.customerToken,
+        redirect_url: 'https://mywebsite.com/order/success',
+        cancel_url: 'https://mywebsite.com/order/cancel'
+      });
+      return checkoutUrl
+    } catch (err) {
+      console.log(err);
+    }
   }
-}
 
   // Submit action (transient token / gateway payload)
   async submitAction(dto: any) {
